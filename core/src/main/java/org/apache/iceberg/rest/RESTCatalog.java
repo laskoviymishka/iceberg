@@ -235,6 +235,17 @@ public class RESTCatalog
     delegate.renameTable(from, to);
   }
 
+  /** Load the current label set for a table. See {@link RESTSessionCatalog#loadLabels}. */
+  public org.apache.iceberg.rest.responses.LoadLabelsResponse loadLabels(TableIdentifier ident) {
+    return sessionCatalog.loadLabels(context, ident);
+  }
+
+  /** Apply label updates and removals atomically. See {@link RESTSessionCatalog#updateLabels}. */
+  public org.apache.iceberg.rest.responses.LoadLabelsResponse updateLabels(
+      TableIdentifier ident, org.apache.iceberg.rest.requests.UpdateLabelsRequest request) {
+    return sessionCatalog.updateLabels(context, ident, request);
+  }
+
   @Override
   public Table registerTable(TableIdentifier ident, String metadataFileLocation) {
     return delegate.registerTable(ident, metadataFileLocation);

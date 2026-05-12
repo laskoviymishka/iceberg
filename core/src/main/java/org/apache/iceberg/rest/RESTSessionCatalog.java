@@ -87,6 +87,7 @@ import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.UpdateLabelsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -94,6 +95,7 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadLabelsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -392,6 +394,51 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .post(paths.rename(), request, null, mutationHeaders, ErrorHandlers.tableErrorHandler());
 
     invalidateTable(context, from);
+  }
+
+  /**
+   * Load the current label set for a table.
+   *
+   * <p>Labels are catalog-scoped enrichment and are NOT part of {@code metadata.json}. The
+   * response carries the split shape ({@code labels} flat k/v + {@code column-labels} keyed by
+   * field-id).
+   */
+  public LoadLabelsResponse loadLabels(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_LABELS);
+    checkIdentifierIsValid(identifier);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    return client
+        .withAuthSession(contextualSession)
+        .get(
+            paths.labels(identifier),
+            LoadLabelsResponse.class,
+            Map.of(),
+            ErrorHandlers.tableErrorHandler());
+  }
+
+  /**
+   * Apply label updates and removals atomically.
+   *
+   * <p>The catalog rejects writes to catalog-managed (read-only) keys with {@code 403
+   * LabelKeyNotWritable} before any mutation. Mutations never touch {@code metadata.json} or
+   * create snapshots. The response echoes the full post-update label set in the same shape as
+   * {@link #loadLabels}.
+   */
+  public LoadLabelsResponse updateLabels(
+      SessionContext context, TableIdentifier identifier, UpdateLabelsRequest request) {
+    Endpoint.check(endpoints, Endpoint.V1_UPDATE_LABELS);
+    checkIdentifierIsValid(identifier);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    return client
+        .withAuthSession(contextualSession)
+        .post(
+            paths.labels(identifier),
+            request,
+            LoadLabelsResponse.class,
+            mutationHeaders,
+            ErrorHandlers.tableErrorHandler());
   }
 
   @Override

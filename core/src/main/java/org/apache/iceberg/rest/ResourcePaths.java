@@ -38,6 +38,8 @@ public class ResourcePaths {
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
+  public static final String V1_TABLE_LABELS =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/labels";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
   public static final String V1_TABLE_SCAN_PLAN_SUBMIT =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan";
@@ -128,6 +130,17 @@ public class ResourcePaths {
         "tables",
         RESTUtil.encodeString(identifier.name()),
         "metrics");
+  }
+
+  public String labels(TableIdentifier identifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(identifier.namespace()),
+        "tables",
+        RESTUtil.encodeString(identifier.name()),
+        "labels");
   }
 
   public String commitTransaction() {

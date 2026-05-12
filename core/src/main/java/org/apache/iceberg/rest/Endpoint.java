@@ -66,6 +66,10 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
   public static final Endpoint V1_TABLE_CREDENTIALS =
       Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
+  public static final Endpoint V1_LOAD_LABELS =
+      Endpoint.create("GET", ResourcePaths.V1_TABLE_LABELS);
+  public static final Endpoint V1_UPDATE_LABELS =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_LABELS);
 
   // table scan plan endpoints
   public static final Endpoint V1_SUBMIT_TABLE_SCAN_PLAN =
