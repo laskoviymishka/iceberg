@@ -250,6 +250,58 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
     checkIcebergTableLocation(newTableIdentifier, sourceTableLocation);
   }
 
+  @Test
+  public void testConversionWithSequentialDeletionVectorsOnSameFile() {
+    String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "dv_seq_table");
+    String sourceTableLocation = sourceLocation.toURI().toString();
+
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", sourceTable));
+
+    // range(0, 10000, 1, 1) -> a single partition -> a single data file, so both deletes below
+    // land on the SAME physical file as successive Deletion Vector updates.
+    Dataset<Row> dvDf =
+        spark
+            .range(0, 10000, 1, 1)
+            .selectExpr(
+                "CAST(id AS int) AS id",
+                "current_timestamp() AS created_at",
+                "CAST(id AS string) AS event_name",
+                "CAST(id % 2 == 0 AS boolean) AS is_active",
+                "CAST(id AS double) AS price");
+
+    dvDf.write()
+        .format("delta")
+        .mode(SaveMode.Append)
+        .option("path", sourceTableLocation)
+        .option("delta.enableDeletionVectors", "true")
+        .option("delta.enableInCommitTimestamps", "true")
+        .option("delta.enableRowTracking", "true")
+        .saveAsTable(sourceTable);
+
+    // Two SEPARATE commits, each a DV update on the SAME file:
+    //   v1: add(file, DV{id=1})       + remove(file)
+    //   v2: add(file, DV{id=1, id=2}) + remove(file)
+    // The converter adds the v2 DV but never removeDeletes() the v1 DV, so the second DV update
+    // on a file that already carries a DV is not reconciled. Expected source result: 9998 rows.
+    spark.sql("DELETE FROM " + sourceTable + " WHERE id = 1;");
+    spark.sql("DELETE FROM " + sourceTable + " WHERE id = 2;");
+
+    String newTableIdentifier = toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_dv_seq_table");
+
+    // Act
+    SnapshotDeltaLakeTable conversionAction =
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+            spark, newTableIdentifier, sourceTableLocation);
+    conversionAction.execute();
+
+    // Assert. checkLatestSnapshotIntegrity does SELECT * + size + containsExactlyInAnyOrder;
+    // checkTagContentAndOrder additionally verifies each per-version snapshot (v1 -> 9999 rows,
+    // v2 -> 9998 rows) via time travel.
+    checkLatestSnapshotIntegrity(sourceTable, newTableIdentifier);
+    checkTagContentAndOrder(sourceTable, sourceTableLocation, newTableIdentifier, 0);
+    checkIcebergTableLocation(newTableIdentifier, sourceTableLocation);
+  }
+
   @ParameterizedTest
   @CsvSource(
       useHeadersInDisplayName = false,
