@@ -300,6 +300,14 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
     checkLatestSnapshotIntegrity(sourceTable, newTableIdentifier);
     checkTagContentAndOrder(sourceTable, sourceTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, sourceTableLocation);
+
+    // Metadata-level check: row content (SELECT *) cannot catch this bug because the superseded v1
+    // DV {1} is a subset of the v2 DV {1,2}, so the union Iceberg applies equals the correct set.
+    // The defect is a leftover DV: the single data file must carry exactly one deletion vector in
+    // the latest snapshot. Buggy conversion leaves the v1 DV behind, yielding 2 delete files.
+    assertThat(spark.sql("SELECT * FROM " + newTableIdentifier + ".delete_files").count())
+        .as("a data file must carry at most one deletion vector after conversion")
+        .isEqualTo(1L);
   }
 
   @ParameterizedTest
